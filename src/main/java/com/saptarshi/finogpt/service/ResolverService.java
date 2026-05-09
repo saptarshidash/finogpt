@@ -78,11 +78,11 @@ public class ResolverService {
         ctx.setResolutionMode("NONE");
 
         String normalizedQuery = keywordExtractor.normalize(query);
-        normalizedQuery = normalizeTimePhrases(normalizedQuery);
+        String timeQuery = normalizeTimePhrases(query.toLowerCase());
 
-        extractTime(normalizedQuery, ctx);
-        detectTransactionDirection(normalizedQuery, ctx);
+        extractTime(timeQuery, ctx);
         detectIntent(normalizedQuery, ctx);
+        detectTransactionDirection(normalizedQuery, ctx);
         extractLimit(normalizedQuery, ctx);
 
         if (keywordExtractor.isEntityFocused(normalizedQuery)) {
@@ -639,7 +639,7 @@ public class ResolverService {
         if (normalizedName.contains(keyword) || lowerName.contains(keyword)) {
             return 65 + tokenOverlapScore(normalizedName, keyword);
         }
-        return tokenOverlapScore(normalizedName, keyword) >= 2 ? 55 : 10;
+        return tokenOverlapScore(normalizedName, keyword) >= 1 ? 60 : 10;
     }
 
     private int scoreCategory(Category category, String keyword) {
@@ -902,7 +902,8 @@ public class ResolverService {
                 || query.contains("income") || query.contains("salary")
                 || query.contains("refund") || query.contains("refunded")
                 || query.contains("earn") || query.contains("earned")
-                || query.contains("credited")) {
+                || query.contains("credited")
+                || query.matches("^pay\\s+transactions?.*")) {
             ctx.setIntent("SUM");
             return;
         }
@@ -1009,6 +1010,12 @@ public class ResolverService {
                 || query.contains("paid") || query.contains("purchase")
                 || query.contains("purchases") || query.contains("bought")) {
             ctx.setTxnDirection("DEBIT");
+            return;
+        }
+
+        if (("MAX".equalsIgnoreCase(ctx.getIntent()) || "MIN".equalsIgnoreCase(ctx.getIntent()))
+                && (query.contains(" made ") || query.endsWith(" made") || query.contains(" i made "))) {
+            ctx.setTxnDirection("DEBIT");
         }
     }
 
@@ -1016,8 +1023,12 @@ public class ResolverService {
         boolean missingIntent = ctx.getIntent() == null || "UNKNOWN".equalsIgnoreCase(ctx.getIntent());
         boolean missingTime = ctx.getMonth() == null
                 && ctx.getLastNMonths() == null
+                && ctx.getFromDate() == null
+                && ctx.getToDate() == null
                 && !ctx.isToday()
                 && !ctx.isYesterday()
+                && !ctx.isThisWeek()
+                && !ctx.isLastWeek()
                 && !ctx.isYearExplicit()
                 && ctx.isTimeReferenced();
         boolean unresolvedSearchPhrase = keywordExtractor.isResolvablePhrase(searchPhrase) && !hasResolvedFilters(ctx);

@@ -45,7 +45,7 @@ public class NLPKeywordExtractor {
     );
 
     private static final Set<String> CATEGORY_HINTS = Set.of(
-            "category", "categories"
+            "category", "categories", "expense", "expenses"
     );
 
     private static final Set<String> GENERIC_PHRASES = Set.of(
