@@ -4,6 +4,8 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.List;
+
 @ConfigurationProperties(prefix = "app")
 @Getter
 @Setter
@@ -12,6 +14,7 @@ public class AppProperties {
     private final Ingestion ingestion = new Ingestion();
     private final Llm llm = new Llm();
     private final Security security = new Security();
+    private final Cors cors = new Cors();
 
     @Getter
     @Setter
@@ -41,5 +44,14 @@ public class AppProperties {
             private String secret;
             private long expirationMillis = 86_400_000L;
         }
+    }
+
+    @Getter
+    @Setter
+    public static class Cors {
+        private List<String> allowedOriginPatterns = List.of(
+                "http://localhost:*",
+                "http://127.0.0.1:*"
+        );
     }
 }

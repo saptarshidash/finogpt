@@ -1,5 +1,6 @@
 package com.saptarshi.finogpt.security;
 
+import com.saptarshi.finogpt.config.AppProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -21,9 +22,11 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AppProperties appProperties;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, AppProperties appProperties) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.appProperties = appProperties;
     }
 
     @Bean
@@ -68,10 +71,12 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of(
-                "http://localhost:*",
-                "http://127.0.0.1:*"
-        ));
+        List<String> allowedOriginPatterns = appProperties.getCors().getAllowedOriginPatterns();
+        configuration.setAllowedOriginPatterns(
+                (allowedOriginPatterns == null || allowedOriginPatterns.isEmpty())
+                        ? List.of("http://localhost:*", "http://127.0.0.1:*")
+                        : allowedOriginPatterns
+        );
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
