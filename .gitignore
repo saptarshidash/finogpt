@@ -2,6 +2,7 @@ HELP.md
 target/
 .mvn/wrapper/maven-wrapper.jar
 config/
+docs/
 FRONTEND_IMPLEMENTATION_PLAN.md
 deployment.md
 !**/src/main/**/target/

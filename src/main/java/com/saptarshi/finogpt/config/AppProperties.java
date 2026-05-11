@@ -13,8 +13,29 @@ public class AppProperties {
 
     private final Ingestion ingestion = new Ingestion();
     private final Llm llm = new Llm();
+    private final AppHelp appHelp = new AppHelp();
     private final Security security = new Security();
     private final Cors cors = new Cors();
+
+    public Ingestion getIngestion() {
+        return ingestion;
+    }
+
+    public Llm getLlm() {
+        return llm;
+    }
+
+    public AppHelp getAppHelp() {
+        return appHelp;
+    }
+
+    public Security getSecurity() {
+        return security;
+    }
+
+    public Cors getCors() {
+        return cors;
+    }
 
     @Getter
     @Setter
@@ -31,6 +52,16 @@ public class AppProperties {
         private String location = "global";
         private String model = "gemini-3.1-pro-preview";
         private boolean vertexAiEnabled = true;
+    }
+
+    @Getter
+    @Setter
+    public static class AppHelp {
+        private String knowledgeBasePath = "docs/app-help-knowledge-base.md";
+        private String embeddingModel = "text-embedding-004";
+        private int outputDimensionality = 768;
+        private int topK = 3;
+        private double minSimilarity = 0.55d;
     }
 
     @Getter

@@ -32,6 +32,12 @@ app:
     location: ${LLM_LOCATION:global}
     model: ${LLM_MODEL:gemini-2.5-pro}
     vertex-ai-enabled: ${LLM_VERTEX_AI_ENABLED:true}
+  app-help:
+    knowledge-base-path: ${APP_HELP_KB_PATH:docs/app-help-knowledge-base.md}
+    embedding-model: ${APP_HELP_EMBEDDING_MODEL:text-embedding-004}
+    output-dimensionality: ${APP_HELP_OUTPUT_DIMENSIONALITY:768}
+    top-k: ${APP_HELP_TOP_K:3}
+    min-similarity: ${APP_HELP_MIN_SIMILARITY:0.55}
   security:
     jwt:
       expiration-millis: ${JWT_EXPIRATION_MILLIS:86400000}

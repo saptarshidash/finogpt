@@ -25,11 +25,13 @@ class HybridQueryServiceTest {
     private final NLQService nlqService = Mockito.mock(NLQService.class);
     private final RagService ragService = Mockito.mock(RagService.class);
     private final LLMService llmService = Mockito.mock(LLMService.class);
+    private final AppHelpRagService appHelpRagService = Mockito.mock(AppHelpRagService.class);
     private final ClarificationSessionService clarificationSessionService = Mockito.mock(ClarificationSessionService.class);
     private final HybridQueryService hybridQueryService = new HybridQueryService(
             nlqService,
             ragService,
             llmService,
+            appHelpRagService,
             new QueryDecisionService(),
             clarificationSessionService,
             Mockito.mock(RecurringReadService.class),
@@ -62,6 +64,30 @@ class HybridQueryServiceTest {
         ClassificationResult result = hybridQueryService.classify("show transactions related to travel");
 
         assertEquals(QueryType.RAG, result.getType());
+    }
+
+    @Test
+    void returnsFeatureSpecificHelpForAnalyticsQuestions() {
+        Mockito.when(appHelpRagService.answer("how to use analytics"))
+                .thenReturn("Use analytics to review daily or monthly series for spend, credit, or transaction-count metrics.");
+
+        QueryResponse response = hybridQueryService.handle(7L, "how to use analytics");
+
+        assertTrue(response.getAnswer().contains("analytics"));
+        assertTrue(response.getAnswer().contains("daily or monthly"));
+        assertTrue(response.getAnswer().contains("spend, credit, or transaction-count"));
+        Mockito.verifyNoInteractions(llmService);
+    }
+
+    @Test
+    void mapsAlertsFeatureQuestionsToAnomaliesGuidance() {
+        Mockito.when(appHelpRagService.answer("what is the Alerts feature"))
+                .thenReturn("This app uses anomalies for unusual activity rather than a separate alerts page.");
+
+        QueryResponse response = hybridQueryService.handle(7L, "what is the Alerts feature");
+
+        assertTrue(response.getAnswer().contains("anomalies"));
+        Mockito.verifyNoInteractions(llmService);
     }
 
     @Test

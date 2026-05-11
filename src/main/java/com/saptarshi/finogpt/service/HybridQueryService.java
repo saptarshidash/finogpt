@@ -37,6 +37,7 @@ public class HybridQueryService {
     private final NLQService nlqService;
     private final RagService ragService;
     private final LLMService llmService;
+    private final AppHelpRagService appHelpRagService;
     private final QueryDecisionService queryDecisionService;
     private final ClarificationSessionService clarificationSessionService;
     private final RecurringReadService recurringReadService;
@@ -82,6 +83,40 @@ public class HybridQueryService {
 
         if (result.getType() == RAG) {
             QueryExecutionResult executionResult = ragService.executeSearch(userId, query);
+            return buildResponse(query, result, executionResult);
+        }
+
+        if (result.getType() == APP_HELP || isLikelyAppHelpFallback(query)) {
+            ClassificationResult appHelpResult = result.getType() == APP_HELP
+                    ? result
+                    : new ClassificationResult(APP_HELP, result.getConfidence(), false);
+            String appHelpAnswer = appHelpRagService.answer(query);
+            if (appHelpAnswer != null && !appHelpAnswer.isBlank()) {
+                return QueryResponse.builder()
+                        .answer(appHelpAnswer)
+                        .data(List.of())
+                        .decision(queryDecisionService.buildDecision(appHelpResult, null))
+                        .metadata(buildMetadata(query, appHelpResult, null))
+                        .build();
+            }
+
+            QueryExecutionResult executionResult = new QueryExecutionResult(
+                    "I couldn't map that question to a supported app feature. Try asking about dashboard, analytics, ingestion, transactions, anomalies, recurring, query workspace, or settings.",
+                    List.of(),
+                    null,
+                    QueryExecutionStatus.UNSUPPORTED
+            );
+            return buildResponse(query, appHelpResult, executionResult);
+        }
+
+        if (!isFinanceOrAppQuery(query)) {
+            QueryExecutionResult executionResult = new QueryExecutionResult(
+                    "I can help with personal finance questions and with using this app. " +
+                            "Try asking about spending, income, transactions, categories, anomalies, recurring payments, or how to use a feature.",
+                    List.of(),
+                    null,
+                    QueryExecutionStatus.UNSUPPORTED
+            );
             return buildResponse(query, result, executionResult);
         }
 
@@ -219,6 +254,7 @@ public class HybridQueryService {
         double nlqScore = scoreNLQ(q);
         double ragScore = scoreRAG(q);
         double llmScore = scoreLLM(q);
+        double appHelpScore = scoreAppHelp(q);
 
         boolean isHybrid = isHybrid(q);
 
@@ -234,6 +270,11 @@ public class HybridQueryService {
         if (llmScore > max) {
             type = LLM;
             max = llmScore;
+        }
+
+        if (appHelpScore > max) {
+            type = APP_HELP;
+            max = appHelpScore;
         }
         
         if (max < 0.6) {
@@ -252,16 +293,19 @@ public class HybridQueryService {
                     "Your job is to classify user queries into ONE of the following categories:\n\n" +
                     "NLQ = questions about numbers, totals, aggregations, comparisons\n" +
                     "RAG = searching or filtering transactions based on meaning\n" +
-                    "LLM = insights, reasoning, advice, or explanations\n\n" +
+                    "LLM = insights, reasoning, advice, or explanations\n" +
+                    "APP_HELP = questions about how to use this app, what a feature does, or how a page/workflow works\n\n" +
                     "Examples:\n" +
                     "\"How much did I spend last month?\" = NLQ\n" +
                     "\"Top 5 merchants\" = NLQ\n" +
                     "\"Show transactions related to travel\" = RAG\n" +
                     "\"Find similar payments\" = RAG\n" +
                     "\"Why is my spending high?\" = LLM\n" +
-                    "\"How can I save money?\" = LLM\n\n" +
+                    "\"How can I save money?\" = LLM\n" +
+                    "\"How do I use analytics?\" = APP_HELP\n" +
+                    "\"What is the alerts feature?\" = APP_HELP\n\n" +
                     "Rules:\n" +
-                    "- Return ONLY one word: NLQ or RAG or LLM\n" +
+                    "- Return ONLY one word: NLQ or RAG or LLM or APP_HELP\n" +
                     "- Do NOT explain\n" +
                     "- Do NOT return anything else\n\n" +
                     "Query:\n" + query;
@@ -327,6 +371,21 @@ public class HybridQueryService {
 
         if (classificationResult.getType() == QueryType.RAG) {
             QueryExecutionResult executionResult = ragService.executeResolvedSearch(session.getOriginalQuery(), clarifiedContext);
+            return buildResponse(session.getOriginalQuery(), classificationResult, executionResult);
+        }
+
+        if (classificationResult.getType() == QueryType.APP_HELP) {
+            String appHelpAnswer = appHelpRagService.answer(session.getOriginalQuery());
+            QueryExecutionResult executionResult = new QueryExecutionResult(
+                    appHelpAnswer != null && !appHelpAnswer.isBlank()
+                            ? appHelpAnswer
+                            : "I couldn't map that question to a supported app feature.",
+                    List.of(),
+                    clarifiedContext,
+                    appHelpAnswer != null && !appHelpAnswer.isBlank()
+                            ? QueryExecutionStatus.EXECUTED
+                            : QueryExecutionStatus.UNSUPPORTED
+            );
             return buildResponse(session.getOriginalQuery(), classificationResult, executionResult);
         }
 
@@ -847,8 +906,24 @@ public class HybridQueryService {
     private String buildLLMPrompt(String query) {
 
         return "You are a personal finance assistant.\n\n" +
+                "Scope:\n" +
+                "- Answer only personal finance questions or questions about how to use this app.\n" +
+                "- If the user asks something outside that scope, politely say that you can only help with personal finance and app usage.\n\n" +
                 "Answer clearly and concisely:\n\n" +
                 query;
+    }
+
+    private boolean isFinanceOrAppQuery(String query) {
+        String q = normalize(query);
+        return q.matches(".*\\b(finance|financial|money|budget|budgeting|expense|expenses|spend|spending|income|saving|savings|cashflow|balance|transaction|transactions|payment|payments|merchant|merchants|category|categories|anomaly|anomalies|alert|alerts|recurring|subscription|subscriptions|debit|debits|credit|credits|salary|app|dashboard|analytics|upload|import|ingestion|query|search|history|settings|mapping|profile)\\b.*");
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.toLowerCase().trim();
+    }
+
+    private boolean isLikelyAppHelpFallback(String query) {
+        return scoreAppHelp(normalize(query)) >= 0.5;
     }
 
     private double scoreNLQ(String q) {
@@ -886,6 +961,17 @@ public class HybridQueryService {
         if (q.matches(".*\\b(why|explain|reason|analyze)\\b.*")) score += 0.4;
         if (q.matches(".*\\b(suggest|recommend|advice|improve)\\b.*")) score += 0.3;
         if (q.matches(".*\\b(am i|should i|can i)\\b.*")) score += 0.3;
+
+        return Math.min(score, 1.0);
+    }
+
+    private double scoreAppHelp(String q) {
+
+        double score = 0;
+
+        if (q.matches(".*\\b(help|guide|walkthrough|walk through|how|using|use|feature|features|page|screen|tab|view|workspace|works|working|where|find|open|understand|what is|what does)\\b.*")) score += 0.4;
+        if (q.matches(".*\\b(app|dashboard|analytics|alert|alerts|anomaly|anomalies|recurring|transaction|transactions|upload|import|ingestion|query|history|settings|mapping|profile)\\b.*")) score += 0.4;
+        if (q.matches(".*\\b(query history|top merchants|top categories|cashflow|spend trend|raw result|clarification|filters)\\b.*")) score += 0.3;
 
         return Math.min(score, 1.0);
     }
