@@ -308,6 +308,7 @@ public class AppHelpRagService {
 
     private void validateKnowledgeBasePath(Path path) {
         if (!Files.exists(path)) {
+            log.error("App-help knowledge base file not found at {}", path.toAbsolutePath());
             throw new IllegalStateException("Knowledge base file not found: " + path.toAbsolutePath());
         }
     }
