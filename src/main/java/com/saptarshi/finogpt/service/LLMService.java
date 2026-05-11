@@ -29,15 +29,22 @@ public class LLMService {
             throw new IllegalStateException("LLM location is not configured");
         }
 
-        Client client = Client.builder()
-                .vertexAI(true)
-                .project(projectId)
-                .location(location)
-                .build();
+        try {
+            Client client = Client.builder()
+                    .vertexAI(true)
+                    .project(projectId)
+                    .location(location)
+                    .build();
 
-        GenerateContentResponse response =
-                client.models.generateContent(appProperties.getLlm().getModel(), prompt, null);
+            GenerateContentResponse response =
+                    client.models.generateContent(appProperties.getLlm().getModel(), prompt, null);
 
-        return response.text();
+            String responseText = response.text();
+            log.info("LLM Response:\n{}", responseText);
+            return responseText;
+        } catch (Exception e) {
+            log.error("Error while calling LLM", e);
+            throw e;
+        }
     }
 }
